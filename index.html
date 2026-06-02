@@ -331,13 +331,26 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
   </div>
 
   <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('lista')" id="tb-lista"><i class="ti ti-list"></i> Lista</button>
+    <button class="tab active" onclick="switchTab('produtos')" id="tb-produtos"><i class="ti ti-apps"></i> Produtos</button>
+    <button class="tab" onclick="switchTab('lista')" id="tb-lista"><i class="ti ti-list"></i> Lista</button>
     <button class="tab" onclick="switchTab('comprar')" id="tb-comprar"><i class="ti ti-shopping-cart"></i> Comprar</button>
     <button class="tab" onclick="switchTab('fotos')" id="tb-fotos"><i class="ti ti-photo"></i> Fotos</button>
-    <button class="tab" onclick="switchTab('favoritas')" id="tb-favoritas"><i class="ti ti-heart"></i> Favoritas</button>
     <button class="tab" onclick="switchTab('historico')" id="tb-historico"><i class="ti ti-chart-bar"></i></button>
   </div>
   <div class="tab-divider"></div>
+
+  <!-- PRODUTOS (biblioteca global) -->
+  <div id="tab-produtos" class="scroll-area" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+      <div class="search-bar" style="flex:1;margin-bottom:0">
+        <i class="ti ti-search"></i>
+        <input type="text" id="prod-search" placeholder="Pesquisar produtos..." oninput="renderProdutos()">
+      </div>
+      <button onclick="openAddProduto()" class="primary" style="padding:9px 12px;flex-shrink:0"><i class="ti ti-plus"></i></button>
+    </div>
+    <div id="prod-cat-filter" style="display:flex;gap:5px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px;-webkit-overflow-scrolling:touch"></div>
+    <div id="prod-list"></div>
+  </div>
 
   <!-- LISTA -->
   <div id="tab-lista" class="scroll-area">
@@ -370,7 +383,7 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
     <div class="add-area">
       <div class="add-row" style="justify-content:space-between;margin-bottom:8px">
         <span style="font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.07em">Adicionar item</span>
-        <button onclick="openTemplatePicker()" style="font-size:11px;padding:5px 10px;background:var(--purple-light);color:var(--purple-dark);border-color:transparent"><i class="ti ti-template"></i> Usar modelo</button>
+        <button onclick="openBibliotecaPicker()" style="font-size:11px;padding:5px 10px;background:var(--green-light);color:var(--green-dark);border-color:transparent;font-weight:600"><i class="ti ti-apps"></i> Da biblioteca</button>
       </div>
       <div class="add-row">
         <div class="ac-wrap">
@@ -467,12 +480,6 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
       <i class="ti ti-photo-off"></i>
       Sem fotos ainda — adiciona folhetos ou promoções acima
     </div>
-  </div>
-
-  <!-- FAVORITAS -->
-  <div id="tab-favoritas" class="scroll-area" style="display:none">
-    <div class="section-hd">Listas guardadas</div>
-    <div id="fav-list"></div>
   </div>
 
   <!-- HISTÓRICO -->
@@ -627,6 +634,68 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
   </div>
 </div>
 
+<!-- BIBLIOTECA PICKER MODAL -->
+<div class="modal-bg" id="bib-picker-modal">
+  <div class="modal" style="max-height:92vh;display:flex;flex-direction:column;padding-bottom:calc(16px + var(--safe-bottom))">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin-bottom:0">Adicionar da biblioteca</h3>
+      <button class="icon-btn" onclick="closeModal('bib-picker-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="search-bar" style="margin-bottom:8px">
+      <i class="ti ti-search"></i>
+      <input type="text" id="bib-pick-search" placeholder="Pesquisar..." oninput="renderBibPicker()">
+    </div>
+    <div id="bib-pick-cat-filter" style="display:flex;gap:5px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;-webkit-overflow-scrolling:touch;flex-shrink:0"></div>
+    <div id="bib-pick-list" style="flex:1;overflow-y:auto;overflow-x:hidden"></div>
+    <div style="padding-top:12px;border-top:1px solid var(--border);flex-shrink:0;margin-top:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span id="bib-sel-count" style="font-size:13px;color:var(--text2)">Nenhum selecionado</span>
+        <button onclick="bibPickDeselectAll()" style="font-size:11px;padding:4px 8px;color:var(--text2)">Limpar</button>
+      </div>
+      <button class="primary" id="bib-add-btn" onclick="addFromBiblioteca()" style="width:100%;justify-content:center" disabled>Seleciona produtos</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT PRODUTO MODAL -->
+<div class="modal-bg" id="produto-modal">
+  <div class="modal">
+    <h3 id="prod-modal-title">Novo produto</h3>
+    <label>Nome</label><input type="text" id="prod-name" placeholder="Ex: Leite meio-gordo">
+    <label>Categoria</label><select id="prod-cat"></select>
+    <label>Quantidade habitual</label><input type="number" id="prod-qty" placeholder="1" min="0.1" step="0.1" value="1">
+    <label>Preço típico (€)</label><input type="number" id="prod-price" placeholder="0,00" min="0" step="0.01">
+    <label>Loja habitual</label>
+    <div class="super-ac-wrap">
+      <input type="text" id="prod-super" placeholder="Ex: Continente" autocomplete="off"
+        oninput="showSuperAC3()" onkeydown="superKey3(event)">
+      <div class="super-ac-dropdown" id="super-ac-drop3" style="display:none"></div>
+    </div>
+    <label>Nota</label><input type="text" id="prod-note" placeholder="Ex: só da marca X">
+    <div class="modal-actions">
+      <button onclick="closeModal('produto-modal')">Cancelar</button>
+      <button class="primary" onclick="saveProduto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* BIBLIOTECA */
+.prod-card{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.prod-card:last-child{border-bottom:none}
+.prod-check-circle{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+.prod-check-circle.sel{background:var(--green);border-color:var(--green)}
+.prod-info{flex:1;min-width:0}
+.prod-name{font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod-meta{font-size:11px;color:var(--text2);margin-top:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.prod-qty-sel{width:52px;font-size:12px;text-align:center;padding:5px 6px;flex-shrink:0;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface2);color:var(--text)}
+.cat-filter-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;border:1px solid var(--border2);background:var(--surface);color:var(--text2);cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.cat-filter-pill.active{background:var(--green);color:#fff;border-color:var(--green)}
+/* Produto grid cards */
+.prod-grid-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;display:flex;flex-direction:column;gap:4px;position:relative;cursor:default}
+.prod-grid-card .prod-actions{display:flex;gap:2px;position:absolute;top:6px;right:6px}
+</style>
+
 <!-- TEMPLATE PICKER MODAL (Bring!-style) -->
 <div class="modal-bg" id="tpl-picker-modal">
   <div class="modal" style="max-height:90vh">
@@ -728,8 +797,34 @@ let templates    = ls('sc_templates') || [
     {name:'Guardanapos',cat:'Limpeza',qty:1,price:0,super:'',note:''},
   ]},
 ];
+let biblioteca = ls('sc_biblioteca') || [
+  {id:101,name:'Leite meio-gordo',cat:'Laticínios',qty:2,price:0.89,super:'Continente',note:''},
+  {id:102,name:'Pão de forma',cat:'Padaria',qty:1,price:1.29,super:'',note:''},
+  {id:103,name:'Ovos (12)',cat:'Laticínios',qty:1,price:2.49,super:'',note:''},
+  {id:104,name:'Frango inteiro',cat:'Carne e peixe',qty:1,price:0,super:'Pingo Doce',note:''},
+  {id:105,name:'Arroz agulha',cat:'Outros',qty:1,price:1.19,super:'',note:''},
+  {id:106,name:'Alface',cat:'Frutas e legumes',qty:1,price:0,super:'',note:''},
+  {id:107,name:'Tomate',cat:'Frutas e legumes',qty:4,price:0,super:'',note:''},
+  {id:108,name:'Bananas',cat:'Frutas e legumes',qty:1,price:0,super:'',note:''},
+  {id:109,name:'Iogurte natural',cat:'Laticínios',qty:4,price:0,super:'',note:''},
+  {id:110,name:'Manteiga',cat:'Laticínios',qty:1,price:0,super:'',note:''},
+  {id:111,name:'Sumo laranja',cat:'Bebidas',qty:2,price:0,super:'',note:''},
+  {id:112,name:'Água (6x1.5L)',cat:'Bebidas',qty:1,price:1.99,super:'Lidl',note:''},
+  {id:113,name:'Cerveja',cat:'Bebidas',qty:6,price:0,super:'',note:''},
+  {id:114,name:'Detergente loiça',cat:'Limpeza',qty:1,price:0,super:'',note:''},
+  {id:115,name:'Papel higiénico',cat:'Higiene',qty:1,price:0,super:'',note:''},
+  {id:116,name:'Champô',cat:'Higiene',qty:1,price:0,super:'',note:''},
+  {id:117,name:'Pasta dentes',cat:'Higiene',qty:1,price:0,super:'',note:''},
+  {id:118,name:'Chouriço',cat:'Carne e peixe',qty:1,price:0,super:'',note:''},
+  {id:119,name:'Queijo flamengo',cat:'Laticínios',qty:1,price:0,super:'',note:''},
+  {id:120,name:'Massa esparguete',cat:'Outros',qty:1,price:0,super:'',note:''},
+];
 
 let editId    = null;
+let editProdId = null;
+let bibSelections = {}; // {prodId: qty}
+let bibPickCatFilter = 'Todos';
+let prodCatFilter = 'Todos';
 let dragSrc   = null;
 let focusMode = false;
 let groupBySuper = false;
@@ -754,12 +849,13 @@ const save = {
   photos:   () => ss('sc_photos',   photos),
   supers:     () => ss('sc_supers',     supermarkets),
   templates:  () => ss('sc_templates', templates),
+  biblioteca: () => ss('sc_biblioteca', biblioteca),
 };
 
 // ── TABS ─────────────────────────────────────────────────────────────────────
-let currentTab = 'lista';
+let currentTab = 'produtos';
 function switchTab(t){
-  ['lista','comprar','fotos','favoritas','historico'].forEach(name => {
+  ['produtos','lista','comprar','fotos','historico'].forEach(name => {
     document.getElementById('tb-'+name).classList.toggle('active', name===t);
     document.getElementById('tab-'+name).style.display = name===t ? '' : 'none';
   });
@@ -936,7 +1032,7 @@ function editPhotoLabel(){
 
 // ── CATEGORIES ───────────────────────────────────────────────────────────────
 function buildCatSelects(){
-  ['new-cat','e-cat','tpl-item-cat'].forEach(id => {
+  ['new-cat','e-cat','tpl-item-cat','prod-cat'].forEach(id => {
     const el = document.getElementById(id); if(!el) return;
     const prev = el.value;
     el.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -1122,6 +1218,7 @@ document.addEventListener('click', e => {
   if(!e.target.closest('.super-ac-wrap')) {
     document.getElementById('super-ac-drop').style.display='none';
     const d2 = document.getElementById('super-ac-drop2'); if(d2) d2.style.display='none';
+    const d3 = document.getElementById('super-ac-drop3'); if(d3) d3.style.display='none';
   }
 });
 
@@ -1342,7 +1439,7 @@ function printList(){
   if(w){ w.document.write(html); w.document.close(); }
 }
 function exportJSON(){
-  const data={items,favs,hist,cats,stock,orc,events,photos,supermarkets,templates,exported:new Date().toISOString()};
+  const data={items,favs,hist,cats,stock,orc,events,photos,supermarkets,templates,biblioteca,exported:new Date().toISOString()};
   // photos can be huge — warn
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');
@@ -1367,7 +1464,8 @@ function importJSON(e){
       if(d.photos) photos=d.photos;
       if(d.supermarkets) supermarkets=d.supermarkets;
       if(d.templates) templates=d.templates;
-      save.items();save.favs();save.hist();save.cats();save.stock();ss('sc_orc',orc);save.events();save.photos();save.supers();save.templates();
+      if(d.biblioteca) biblioteca=d.biblioteca;
+      save.items();save.favs();save.hist();save.cats();save.stock();ss('sc_orc',orc);save.events();save.photos();save.supers();save.templates();save.biblioteca();
       buildCatSelects(); updateEventPill(); renderAll();
       alert('Dados importados com sucesso!');
     }catch{alert('Erro ao importar ficheiro.');}
@@ -1376,12 +1474,13 @@ function importJSON(e){
 }
 function clearAllData(){
   if(!confirm('Apagar TODOS os dados? Esta ação é irreversível.')) return;
-  ['sc_items','sc_favs','sc_hist','sc_cats','sc_stock','sc_orc','sc_events','sc_curEvent','sc_photos','sc_supers','sc_templates'].forEach(k=>localStorage.removeItem(k));
+  ['sc_items','sc_favs','sc_hist','sc_cats','sc_stock','sc_orc','sc_events','sc_curEvent','sc_photos','sc_supers','sc_templates','sc_biblioteca'].forEach(k=>localStorage.removeItem(k));
   items=[];favs=[];hist=[];cats=['Frutas e legumes','Laticínios','Carne e peixe','Padaria','Congelados','Bebidas','Limpeza','Higiene','Outros'];
   stock=[];orc=0;events=[{id:1,name:'Compras gerais',emoji:'🛒'}];curEvent=1;photos={};
   supermarkets=['Continente','Pingo Doce','Lidl','Aldi','Mercadona','Intermarché','Minipreço'];
-  templates=[{id:1,name:'Semana normal',emoji:'🛒',items:[{name:'Leite',cat:'Laticínios',qty:2,price:0,super:'',note:''}]}];
-  save.cats();save.events();save.supers();save.templates();buildCatSelects();updateEventPill();renderAll();closeModal('settings-modal');
+  templates=[];biblioteca=[];
+  save.cats();save.events();save.supers();save.templates();save.biblioteca();
+  buildCatSelects();updateEventPill();renderAll();closeModal('settings-modal');
 }
 
 // ── FOCUS MODE ────────────────────────────────────────────────────────────────
@@ -1417,7 +1516,261 @@ function showMTab(id){
   document.getElementById(id).classList.add('active');
 }
 
-// ── TEMPLATES (Bring!-style) ──────────────────────────────────────────────────
+// ── BIBLIOTECA DE PRODUTOS ────────────────────────────────────────────────────
+function renderProdutos(){
+  const search = (document.getElementById('prod-search')?.value||'').trim().toLowerCase();
+  const el = document.getElementById('prod-list'); if(!el) return;
+
+  // category filter pills
+  const allCats = ['Todos', ...new Set(biblioteca.map(p=>p.cat))];
+  const filterEl = document.getElementById('prod-cat-filter');
+  if(filterEl){
+    filterEl.innerHTML = allCats.map(c=>`
+      <div class="cat-filter-pill ${c===prodCatFilter?'active':''}" onclick="setProdCat('${c.replace(/'/,"\\'")}')">
+        ${c==='Todos'?c:`<span class="badge ${catColor(c)}" style="background:none;color:inherit;padding:0">${c}</span>`}
+      </div>`).join('');
+  }
+
+  let filtered = biblioteca.filter(p => {
+    const matchCat = prodCatFilter==='Todos' || p.cat===prodCatFilter;
+    const matchQ   = !search || p.name.toLowerCase().includes(search) || p.cat.toLowerCase().includes(search) || (p.super||'').toLowerCase().includes(search);
+    return matchCat && matchQ;
+  });
+
+  if(!filtered.length){
+    el.innerHTML='<div class="empty"><i class="ti ti-package-off"></i>Sem produtos. Adiciona o primeiro acima!</div>';
+    return;
+  }
+
+  const byCat = {};
+  filtered.forEach(p=>{ if(!byCat[p.cat]) byCat[p.cat]=[]; byCat[p.cat].push(p); });
+
+  el.innerHTML = Object.keys(byCat).map(cat=>`
+    <div class="cat-section">
+      <div class="cat-label"><span class="badge ${catColor(cat)}">${cat}</span></div>
+      ${byCat[cat].map(p=>`
+        <div class="prod-card" onclick="addSingleProdToLista(${p.id})">
+          <div class="prod-info">
+            <div class="prod-name">${p.name}</div>
+            <div class="prod-meta">
+              ${p.qty>1?`<span>${p.qty} un.</span>`:''}
+              ${p.price>0?`<span>${fmt(p.price)}</span>`:''}
+              ${p.super?`<span class="item-super"><i class="ti ti-building-store" style="font-size:9px"></i>${p.super}</span>`:''}
+              ${p.note?`<span style="color:var(--text3)">${p.note}</span>`:''}
+            </div>
+          </div>
+          <button class="icon-btn" onclick="event.stopPropagation();openEditProduto(${p.id})" title="Editar"><i class="ti ti-edit"></i></button>
+          <button class="icon-btn" onclick="event.stopPropagation();deleteProduto(${p.id})" title="Apagar" style="color:var(--text3)"><i class="ti ti-trash"></i></button>
+          <button onclick="event.stopPropagation();addSingleProdToLista(${p.id})" title="Adicionar à lista" style="padding:6px 10px;font-size:12px;background:var(--green-light);color:var(--green-dark);border-color:transparent">
+            <i class="ti ti-plus"></i>
+          </button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function setProdCat(c){ prodCatFilter=c; renderProdutos(); }
+
+function openAddProduto(){
+  editProdId = null;
+  document.getElementById('prod-modal-title').textContent = 'Novo produto';
+  document.getElementById('prod-name').value='';
+  document.getElementById('prod-qty').value='1';
+  document.getElementById('prod-price').value='';
+  document.getElementById('prod-super').value='';
+  document.getElementById('prod-note').value='';
+  openModal('produto-modal');
+}
+
+function openEditProduto(id){
+  const p = biblioteca.find(p=>p.id===id); if(!p) return;
+  editProdId = id;
+  document.getElementById('prod-modal-title').textContent = 'Editar produto';
+  document.getElementById('prod-name').value = p.name;
+  document.getElementById('prod-cat').value  = p.cat;
+  document.getElementById('prod-qty').value  = p.qty;
+  document.getElementById('prod-price').value= p.price||'';
+  document.getElementById('prod-super').value= p.super||'';
+  document.getElementById('prod-note').value = p.note||'';
+  openModal('produto-modal');
+}
+
+function saveProduto(){
+  const name = document.getElementById('prod-name').value.trim();
+  if(!name){ alert('Dá um nome ao produto'); return; }
+  const p = {
+    name,
+    cat:   document.getElementById('prod-cat').value,
+    qty:   parseFloat(document.getElementById('prod-qty').value)||1,
+    price: parseFloat(document.getElementById('prod-price').value)||0,
+    super: document.getElementById('prod-super').value.trim(),
+    note:  document.getElementById('prod-note').value.trim(),
+  };
+  if(p.super && !supermarkets.includes(p.super)){ supermarkets.push(p.super); save.supers(); }
+  if(editProdId){
+    const idx = biblioteca.findIndex(x=>x.id===editProdId);
+    if(idx>=0) biblioteca[idx] = {...biblioteca[idx], ...p};
+  } else {
+    biblioteca.push({id:Date.now(), ...p});
+  }
+  save.biblioteca();
+  closeModal('produto-modal');
+  renderProdutos();
+}
+
+function deleteProduto(id){
+  if(!confirm('Apagar produto da biblioteca?')) return;
+  biblioteca = biblioteca.filter(p=>p.id!==id);
+  save.biblioteca(); renderProdutos();
+}
+
+function addSingleProdToLista(id){
+  const p = biblioteca.find(x=>x.id===id); if(!p) return;
+  const prev = acHistory().find(x=>x.name.toLowerCase()===p.name.toLowerCase());
+  items.push({
+    id: Date.now()+Math.random(),
+    name: p.name, qty: p.qty||1,
+    price: prev&&avgPrice(prev)>0 ? avgPrice(prev) : (p.price||0),
+    cat: p.cat, super: p.super||'', note: p.note||'', done: false
+  });
+  save.items();
+  // Visual feedback
+  const btn = document.querySelector(`.prod-card button[onclick*="addSingleProdToLista(${id})"]`);
+  if(btn){ const orig=btn.innerHTML; btn.innerHTML='<i class="ti ti-check"></i>'; btn.style.background='var(--green)'; btn.style.color='#fff'; setTimeout(()=>{btn.innerHTML=orig;btn.style.background='';btn.style.color='';},900); }
+  renderAll();
+}
+
+// ── BIBLIOTECA PICKER (from lista tab) ────────────────────────────────────────
+function openBibliotecaPicker(){
+  bibSelections = {};
+  bibPickCatFilter = 'Todos';
+  document.getElementById('bib-pick-search').value = '';
+  renderBibPicker();
+  openModal('bib-picker-modal');
+}
+
+function renderBibPicker(){
+  const search = (document.getElementById('bib-pick-search')?.value||'').trim().toLowerCase();
+  const el = document.getElementById('bib-pick-list'); if(!el) return;
+
+  // cat filter pills
+  const allCats = ['Todos', ...new Set(biblioteca.map(p=>p.cat))];
+  const filterEl = document.getElementById('bib-pick-cat-filter');
+  if(filterEl){
+    filterEl.innerHTML = allCats.map(c=>`
+      <div class="cat-filter-pill ${c===bibPickCatFilter?'active':''}" onclick="setBibPickCat('${c.replace(/'/,"\\'")}')">
+        ${c}
+      </div>`).join('');
+  }
+
+  let filtered = biblioteca.filter(p=>{
+    const matchCat = bibPickCatFilter==='Todos' || p.cat===bibPickCatFilter;
+    const matchQ   = !search || p.name.toLowerCase().includes(search) || (p.super||'').toLowerCase().includes(search);
+    return matchCat && matchQ;
+  });
+
+  if(!filtered.length){ el.innerHTML='<div class="empty" style="padding:20px 0">Sem produtos</div>'; return; }
+
+  const byCat = {};
+  filtered.forEach(p=>{ if(!byCat[p.cat]) byCat[p.cat]=[]; byCat[p.cat].push(p); });
+
+  el.innerHTML = Object.keys(byCat).map(cat=>`
+    <div class="cat-section">
+      <div class="cat-label"><span class="badge ${catColor(cat)}">${cat}</span></div>
+      ${byCat[cat].map(p=>{
+        const sel = !!bibSelections[p.id];
+        return `<div class="prod-card" onclick="toggleBibSel(${p.id})">
+          <div class="prod-check-circle ${sel?'sel':''}" id="bib-chk-${p.id}">
+            ${sel?'<i class="ti ti-check" style="font-size:12px;color:#fff"></i>':''}
+          </div>
+          <div class="prod-info">
+            <div class="prod-name">${p.name}</div>
+            <div class="prod-meta">
+              ${p.cat?`<span class="badge ${catColor(p.cat)}" style="font-size:9px">${p.cat}</span>`:''}
+              ${p.price>0?`<span>${fmt(p.price)}</span>`:''}
+              ${p.super?`<span class="item-super" style="font-size:9px"><i class="ti ti-building-store" style="font-size:8px"></i>${p.super}</span>`:''}
+            </div>
+          </div>
+          <input type="number" class="prod-qty-sel" id="bib-qty-${p.id}"
+            value="${bibSelections[p.id]||p.qty||1}" min="0.1" step="0.1"
+            onclick="event.stopPropagation()"
+            onchange="updateBibQty(${p.id},this.value)"
+            style="${sel?'':'opacity:.35'}">
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  updateBibSelCount();
+}
+
+function setBibPickCat(c){ bibPickCatFilter=c; renderBibPicker(); }
+
+function toggleBibSel(id){
+  if(bibSelections[id]){
+    delete bibSelections[id];
+  } else {
+    const p = biblioteca.find(x=>x.id===id);
+    const qtyEl = document.getElementById('bib-qty-'+id);
+    bibSelections[id] = parseFloat(qtyEl?.value)||p?.qty||1;
+  }
+  // Update circle UI
+  const chk = document.getElementById('bib-chk-'+id);
+  const qtyEl = document.getElementById('bib-qty-'+id);
+  const sel = !!bibSelections[id];
+  if(chk){ chk.className='prod-check-circle'+(sel?' sel':''); chk.innerHTML=sel?'<i class="ti ti-check" style="font-size:12px;color:#fff"></i>':''; }
+  if(qtyEl) qtyEl.style.opacity = sel ? '1' : '.35';
+  updateBibSelCount();
+}
+
+function updateBibQty(id, val){
+  if(bibSelections[id]) bibSelections[id] = parseFloat(val)||1;
+}
+
+function bibPickDeselectAll(){
+  bibSelections={};
+  renderBibPicker();
+}
+
+function updateBibSelCount(){
+  const count = Object.keys(bibSelections).length;
+  const lbl = document.getElementById('bib-sel-count');
+  const btn = document.getElementById('bib-add-btn');
+  if(lbl) lbl.textContent = count>0 ? `${count} produto${count!==1?'s':''} selecionado${count!==1?'s':''}` : 'Nenhum selecionado';
+  if(btn){ btn.textContent = count>0 ? `Adicionar ${count} à lista` : 'Seleciona produtos'; btn.disabled = count===0; }
+}
+
+function addFromBiblioteca(){
+  const entries = Object.entries(bibSelections);
+  if(!entries.length) return;
+  entries.forEach(([idStr, qty]) => {
+    const p = biblioteca.find(x=>x.id===parseInt(idStr)); if(!p) return;
+    const prev = acHistory().find(x=>x.name.toLowerCase()===p.name.toLowerCase());
+    items.push({
+      id: Date.now()+Math.random(),
+      name: p.name, qty,
+      price: prev&&avgPrice(prev)>0 ? avgPrice(prev) : (p.price||0),
+      cat: p.cat, super: p.super||'', note: p.note||'', done: false
+    });
+  });
+  save.items();
+  closeModal('bib-picker-modal');
+  renderAll();
+}
+
+// super AC for produto modal
+function showSuperAC3(){
+  const q=(document.getElementById('prod-super')?.value||'').trim().toLowerCase();
+  const drop=document.getElementById('super-ac-drop3');
+  if(!q||!drop){if(drop)drop.style.display='none';return;}
+  const opts=getAllUsedSupers().filter(s=>s.toLowerCase().includes(q)).slice(0,6);
+  if(!opts.length){drop.style.display='none';return;}
+  drop.innerHTML=opts.map(s=>`<div class="super-ac-opt" onclick="pickSuper('${s.replace(/'/,"\\'")}','prod-super','super-ac-drop3')">${s}</div>`).join('');
+  drop.style.display='block';
+}
+function superKey3(e){
+  if(e.key==='Escape'||e.key==='Enter'){ document.getElementById('super-ac-drop3').style.display='none'; }
+}
+
+// ── TEMPLATES (kept for backward compat, hidden from UI) ──────────────────────
 let tplPickSelections = {}; // {itemName: {qty, checked}}
 
 function openTemplatePicker(){
@@ -1807,7 +2160,7 @@ function renderAll(){
   const sf=document.getElementById('stat-feito');if(sf)sf.textContent=items.filter(i=>i.done).length;
   const sg=document.getElementById('stat-gasto');if(sg)sg.textContent=fmt(gasto);
   const sr=document.getElementById('stat-resto2');if(sr)sr.textContent=curOrc>0?fmt(Math.max(0,curOrc-gasto)):'–';
-  renderLista(); renderComprar(); renderFavs(); renderHistorico(); renderGallery();
+  renderLista(); renderComprar(); renderFavs(); renderHistorico(); renderGallery(); renderProdutos();
 }
 
 // ── PWA MANIFEST ──────────────────────────────────────────────────────────────
@@ -1826,6 +2179,9 @@ if('serviceWorker' in navigator){
 // ── INIT ──────────────────────────────────────────────────────────────────────
 buildCatSelects();
 updateEventPill();
+// show produtos tab by default, hide others
+['lista','comprar','fotos','historico'].forEach(n=>{ const el=document.getElementById('tab-'+n); if(el) el.style.display='none'; });
+const tabProd = document.getElementById('tab-produtos'); if(tabProd) tabProd.style.display='';
 renderAll();
 </script>
 </body>
