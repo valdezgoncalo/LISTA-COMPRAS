@@ -424,7 +424,11 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
 
     <div class="action-bar">
       <input type="text" id="save-name" placeholder="Nome para guardar...">
-      <button onclick="saveToFav()" title="Guardar favorita"><i class="ti ti-heart"></i></button>
+      <button onclick="saveToFav()" title="Guardar lista"><i class="ti ti-heart"></i></button>
+      <button onclick="openSavedLists()" title="Listas guardadas" style="position:relative">
+        <i class="ti ti-folders"></i>
+        <span id="fav-badge" style="display:none;position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--green)"></span>
+      </button>
       <button onclick="exportList()" title="Exportar/partilhar"><i class="ti ti-share"></i></button>
       <button onclick="clearAll()" title="Limpar lista" style="color:var(--text2)"><i class="ti ti-trash"></i></button>
     </div>
@@ -581,7 +585,6 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
       <button class="mtab active" onclick="showMTab('s-cats')">Categorias</button>
       <button class="mtab" onclick="showMTab('s-stock')">Stock</button>
       <button class="mtab" onclick="showMTab('s-supers')">Lojas</button>
-      <button class="mtab" onclick="showMTab('s-tpl')">Modelos</button>
       <button class="mtab" onclick="showMTab('s-data')">Dados</button>
     </div>
     <div class="mpanel active" id="s-cats">
@@ -612,14 +615,6 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
         <button onclick="addSuperManual()"><i class="ti ti-plus"></i></button>
       </div>
     </div>
-    <div class="mpanel" id="s-tpl">
-      <div class="section-hd" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Listas-modelo</span>
-        <button onclick="newTemplate()" style="font-size:11px;padding:4px 9px"><i class="ti ti-plus"></i> Nova</button>
-      </div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Cria listas de produtos que podes reutilizar rapidamente.</p>
-      <div id="tpl-manager-list"></div>
-    </div>
     <div class="mpanel" id="s-data">
       <div class="section-hd">Exportar dados</div>
       <button onclick="exportJSON()" style="width:100%;justify-content:center;margin-bottom:8px"><i class="ti ti-download"></i> Exportar backup (JSON)</button>
@@ -630,6 +625,17 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
     </div>
     <div class="modal-actions" style="margin-top:16px">
       <button onclick="closeModal('settings-modal')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVED LISTS MODAL -->
+<div class="modal-bg" id="saved-lists-modal">
+  <div class="modal" style="max-height:85vh">
+    <h3>Listas guardadas</h3>
+    <div id="saved-lists-body"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button onclick="closeModal('saved-lists-modal')">Fechar</button>
     </div>
   </div>
 </div>
@@ -696,65 +702,6 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
 .prod-grid-card .prod-actions{display:flex;gap:2px;position:absolute;top:6px;right:6px}
 </style>
 
-<!-- TEMPLATE PICKER MODAL (Bring!-style) -->
-<div class="modal-bg" id="tpl-picker-modal">
-  <div class="modal" style="max-height:90vh">
-    <h3 style="display:flex;align-items:center;justify-content:space-between">
-      <span>Escolher da lista-modelo</span>
-      <button class="icon-btn" onclick="closeModal('tpl-picker-modal')"><i class="ti ti-x"></i></button>
-    </h3>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Expande um modelo, seleciona os produtos e ajusta as quantidades.</p>
-    <div id="tpl-picker-body" style="max-height:55vh;overflow-y:auto"></div>
-    <div style="background:var(--surface);padding-top:12px;margin-top:8px;border-top:1px solid var(--border)">
-      <button class="primary" id="tpl-add-btn" onclick="addFromTemplate()" style="width:100%;justify-content:center" disabled>Seleciona produtos</button>
-    </div>
-  </div>
-</div>
-
-<!-- TEMPLATE EDIT MODAL -->
-<div class="modal-bg" id="tpl-edit-modal">
-  <div class="modal" style="max-height:90vh">
-    <h3>Editar modelo</h3>
-    <label>Nome do modelo</label>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span id="tpl-edit-emoji" style="font-size:22px;cursor:pointer;padding:4px" onclick="pickTplEmoji()">📋</span>
-      <input type="text" id="tpl-edit-name" placeholder="Ex: Semana normal, Churrasco..." style="flex:1">
-    </div>
-    <label style="margin-top:12px">Produtos no modelo</label>
-    <div id="tpl-edit-items" style="max-height:140px;overflow-y:auto;margin-bottom:8px"></div>
-    <div style="background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);padding:10px">
-      <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Adicionar produto</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <input type="text" id="tpl-item-name" placeholder="Nome..." style="flex:2;min-width:100px">
-        <input type="number" id="tpl-item-qty" placeholder="Qtd" value="1" min="0.1" step="0.1" style="width:58px">
-        <select id="tpl-item-cat" style="flex:1;min-width:90px"></select>
-        <input type="text" id="tpl-item-super" placeholder="Loja" style="flex:1;min-width:80px">
-        <button class="primary" onclick="addTplItem()" style="padding:9px 10px"><i class="ti ti-plus"></i></button>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button onclick="closeModal('tpl-edit-modal')">Cancelar</button>
-      <button class="primary" onclick="saveTplEdit()"><i class="ti ti-check"></i> Guardar modelo</button>
-    </div>
-  </div>
-</div>
-
-<style>
-.tpl-card{background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:8px;overflow:hidden}
-.tpl-header{display:flex;align-items:center;justify-content:space-between;padding:12px;cursor:pointer;transition:background .15s}
-.tpl-header:hover{background:var(--surface3)}
-.tpl-name{font-size:14px;font-weight:500;color:var(--text)}
-.tpl-meta{font-size:11px;color:var(--text2);margin-top:1px}
-.tpl-chevron{color:var(--text3);font-size:16px;transition:transform .2s;flex-shrink:0}
-.tpl-items{padding:0 12px 12px;border-top:1px solid var(--border)}
-.tpl-item-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer}
-.tpl-item-row:last-of-type{border-bottom:none}
-.tpl-item-check{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
-.tpl-item-info{flex:1;min-width:0}
-.tpl-item-name{font-size:13px;color:var(--text)}
-.tpl-item-cat{display:flex;align-items:center;gap:4px;margin-top:2px}
-.tpl-qty-input{width:52px;font-size:12px;text-align:center;padding:5px 6px;flex-shrink:0;border-radius:var(--radius-sm)}
-</style>
 
 <script>
 // ── STORAGE ──────────────────────────────────────────────────────────────────
@@ -772,53 +719,7 @@ let events   = ls('sc_events')  || [{id:1,name:'Compras gerais',emoji:'🛒'}];
 let curEvent = ls('sc_curEvent')|| 1;
 let photos   = ls('sc_photos')  || {}; // { eventId: [{id, data, label, date}] }
 let supermarkets = ls('sc_supers') || ['Continente','Pingo Doce','Lidl','Aldi','Mercadona','Intermarché','Minipreço','El Corte Inglés'];
-let templates    = ls('sc_templates') || [
-  {id:1, name:'Semana normal', emoji:'🛒', items:[
-    {name:'Leite',cat:'Laticínios',qty:2,price:0,super:'',note:''},
-    {name:'Pão',cat:'Padaria',qty:1,price:0,super:'',note:''},
-    {name:'Ovos',cat:'Laticínios',qty:12,price:0,super:'',note:''},
-    {name:'Frango',cat:'Carne e peixe',qty:1,price:0,super:'',note:''},
-    {name:'Arroz',cat:'Outros',qty:1,price:0,super:'',note:''},
-    {name:'Alface',cat:'Frutas e legumes',qty:1,price:0,super:'',note:''},
-    {name:'Tomate',cat:'Frutas e legumes',qty:4,price:0,super:'',note:''},
-    {name:'Sumo laranja',cat:'Bebidas',qty:1,price:0,super:'',note:''},
-    {name:'Detergente loiça',cat:'Limpeza',qty:1,price:0,super:'',note:''},
-  ]},
-  {id:2, name:'Churrasco', emoji:'🍖', items:[
-    {name:'Chouriço',cat:'Carne e peixe',qty:2,price:0,super:'',note:''},
-    {name:'Costeletas',cat:'Carne e peixe',qty:1,price:0,super:'',note:''},
-    {name:'Espetadas',cat:'Carne e peixe',qty:1,price:0,super:'',note:''},
-    {name:'Pão de hambúrguer',cat:'Padaria',qty:1,price:0,super:'',note:''},
-    {name:'Cerveja',cat:'Bebidas',qty:2,price:0,super:'',note:''},
-    {name:'Refrigerantes',cat:'Bebidas',qty:2,price:0,super:'',note:''},
-    {name:'Ketchup',cat:'Outros',qty:1,price:0,super:'',note:''},
-    {name:'Mostarda',cat:'Outros',qty:1,price:0,super:'',note:''},
-    {name:'Carvão',cat:'Outros',qty:1,price:0,super:'',note:''},
-    {name:'Guardanapos',cat:'Limpeza',qty:1,price:0,super:'',note:''},
-  ]},
-];
-let biblioteca = ls('sc_biblioteca') || [
-  {id:101,name:'Leite meio-gordo',cat:'Laticínios',qty:2,price:0.89,super:'Continente',note:''},
-  {id:102,name:'Pão de forma',cat:'Padaria',qty:1,price:1.29,super:'',note:''},
-  {id:103,name:'Ovos (12)',cat:'Laticínios',qty:1,price:2.49,super:'',note:''},
-  {id:104,name:'Frango inteiro',cat:'Carne e peixe',qty:1,price:0,super:'Pingo Doce',note:''},
-  {id:105,name:'Arroz agulha',cat:'Outros',qty:1,price:1.19,super:'',note:''},
-  {id:106,name:'Alface',cat:'Frutas e legumes',qty:1,price:0,super:'',note:''},
-  {id:107,name:'Tomate',cat:'Frutas e legumes',qty:4,price:0,super:'',note:''},
-  {id:108,name:'Bananas',cat:'Frutas e legumes',qty:1,price:0,super:'',note:''},
-  {id:109,name:'Iogurte natural',cat:'Laticínios',qty:4,price:0,super:'',note:''},
-  {id:110,name:'Manteiga',cat:'Laticínios',qty:1,price:0,super:'',note:''},
-  {id:111,name:'Sumo laranja',cat:'Bebidas',qty:2,price:0,super:'',note:''},
-  {id:112,name:'Água (6x1.5L)',cat:'Bebidas',qty:1,price:1.99,super:'Lidl',note:''},
-  {id:113,name:'Cerveja',cat:'Bebidas',qty:6,price:0,super:'',note:''},
-  {id:114,name:'Detergente loiça',cat:'Limpeza',qty:1,price:0,super:'',note:''},
-  {id:115,name:'Papel higiénico',cat:'Higiene',qty:1,price:0,super:'',note:''},
-  {id:116,name:'Champô',cat:'Higiene',qty:1,price:0,super:'',note:''},
-  {id:117,name:'Pasta dentes',cat:'Higiene',qty:1,price:0,super:'',note:''},
-  {id:118,name:'Chouriço',cat:'Carne e peixe',qty:1,price:0,super:'',note:''},
-  {id:119,name:'Queijo flamengo',cat:'Laticínios',qty:1,price:0,super:'',note:''},
-  {id:120,name:'Massa esparguete',cat:'Outros',qty:1,price:0,super:'',note:''},
-];
+let biblioteca   = ls('sc_biblioteca') || [];
 
 let editId    = null;
 let editProdId = null;
@@ -848,7 +749,6 @@ const save = {
   curEvent: () => ss('sc_curEvent', curEvent),
   photos:   () => ss('sc_photos',   photos),
   supers:     () => ss('sc_supers',     supermarkets),
-  templates:  () => ss('sc_templates', templates),
   biblioteca: () => ss('sc_biblioteca', biblioteca),
 };
 
@@ -916,7 +816,6 @@ function addEvent(){
   renderEventList();
 }
 function deleteEvent(id){
-  if(!confirm('Apagar evento e todas as suas fotos?')) return;
   events = events.filter(e=>e.id!==id);
   delete photos[id];
   if(curEvent===id) curEvent = events[0]?.id||1;
@@ -1032,7 +931,7 @@ function editPhotoLabel(){
 
 // ── CATEGORIES ───────────────────────────────────────────────────────────────
 function buildCatSelects(){
-  ['new-cat','e-cat','tpl-item-cat','prod-cat'].forEach(id => {
+  ['new-cat','e-cat','prod-cat'].forEach(id => {
     const el = document.getElementById(id); if(!el) return;
     const prev = el.value;
     el.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -1045,7 +944,7 @@ function addCategory(){
   cats.push(name); save.cats(); buildCatSelects(); renderCatsList(); renderAll();
   document.getElementById('new-cat-name').value='';
 }
-function deleteCategory(i){ if(!confirm('Apagar categoria?')) return; cats.splice(i,1); save.cats(); buildCatSelects(); renderCatsList(); }
+function deleteCategory(i){ cats.splice(i,1); save.cats(); buildCatSelects(); renderCatsList(); }
 function renderCatsList(){
   const el = document.getElementById('cats-list'); if(!el) return;
   el.innerHTML = cats.map((c,i)=>`
@@ -1283,7 +1182,6 @@ function toggleDone(id){
 function updatePrice(id,val){ const it=items.find(i=>i.id===id); if(it){it.price=parseFloat(val)||0;save.items();renderAll();} }
 function delItem(id){ items=items.filter(i=>i.id!==id); save.items(); renderAll(); }
 function clearAll(){
-  if(!confirm('Limpar lista e guardar no histórico?')) return;
   if(items.length>0){
     hist.unshift({id:Date.now(),date:new Date().toLocaleDateString('pt-PT'),items:JSON.parse(JSON.stringify(items)),total:items.reduce((s,i)=>s+(i.price*i.qty),0)});
     if(hist.length>50) hist.pop();
@@ -1339,16 +1237,16 @@ function saveToFav(){
 }
 function loadFav(id){
   const f=favs.find(f=>f.id===id); if(!f) return;
-  if(items.length&&!confirm('Substituir lista atual?')) return;
   items=f.items.map(i=>({...i,done:false,id:Date.now()+Math.random()}));
-  save.items(); switchTab('lista');
+  save.items(); closeModal('saved-lists-modal'); switchTab('lista');
 }
 function dupFav(id){
   const f=favs.find(f=>f.id===id); if(!f) return;
   favs.push({...f,id:Date.now(),name:f.name+' (cópia)',date:new Date().toLocaleDateString('pt-PT')});
-  save.favs(); renderAll();
+  save.favs(); renderFavs();
 }
-function deleteFav(id){favs=favs.filter(f=>f.id!==id);save.favs();renderAll();}
+function deleteFav(id){favs=favs.filter(f=>f.id!==id);save.favs();renderFavs();}
+function openSavedLists(){ renderFavs(); openModal('saved-lists-modal'); }
 
 // ── GROUP BY SUPER ────────────────────────────────────────────────────────────
 function toggleGroupBySuper(){
@@ -1439,7 +1337,7 @@ function printList(){
   if(w){ w.document.write(html); w.document.close(); }
 }
 function exportJSON(){
-  const data={items,favs,hist,cats,stock,orc,events,photos,supermarkets,templates,biblioteca,exported:new Date().toISOString()};
+  const data={items,favs,hist,cats,stock,orc,events,photos,supermarkets,biblioteca,exported:new Date().toISOString()};
   // photos can be huge — warn
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');
@@ -1465,7 +1363,7 @@ function importJSON(e){
       if(d.supermarkets) supermarkets=d.supermarkets;
       if(d.templates) templates=d.templates;
       if(d.biblioteca) biblioteca=d.biblioteca;
-      save.items();save.favs();save.hist();save.cats();save.stock();ss('sc_orc',orc);save.events();save.photos();save.supers();save.templates();save.biblioteca();
+      save.items();save.favs();save.hist();save.cats();save.stock();ss('sc_orc',orc);save.events();save.photos();save.supers();save.biblioteca();
       buildCatSelects(); updateEventPill(); renderAll();
       alert('Dados importados com sucesso!');
     }catch{alert('Erro ao importar ficheiro.');}
@@ -1479,7 +1377,7 @@ function clearAllData(){
   stock=[];orc=0;events=[{id:1,name:'Compras gerais',emoji:'🛒'}];curEvent=1;photos={};
   supermarkets=['Continente','Pingo Doce','Lidl','Aldi','Mercadona','Intermarché','Minipreço'];
   templates=[];biblioteca=[];
-  save.cats();save.events();save.supers();save.templates();save.biblioteca();
+  save.cats();save.events();save.supers();save.biblioteca();
   buildCatSelects();updateEventPill();renderAll();closeModal('settings-modal');
 }
 
@@ -1508,9 +1406,9 @@ function dragDrop(e,id){
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-function openSettings(){ renderCatsList(); renderStockList(); renderSupersManage(); renderTemplateManager(); openModal('settings-modal'); }
+function openSettings(){ renderCatsList(); renderStockList(); renderSupersManage(); openModal('settings-modal'); }
 function showMTab(id){
-  const tabs=['s-cats','s-stock','s-supers','s-tpl','s-data'];
+  const tabs=['s-cats','s-stock','s-supers','s-data'];
   document.querySelectorAll('.mtab').forEach((b,i)=>b.classList.toggle('active',tabs[i]===id));
   document.querySelectorAll('.mpanel').forEach(p=>p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -1618,7 +1516,6 @@ function saveProduto(){
 }
 
 function deleteProduto(id){
-  if(!confirm('Apagar produto da biblioteca?')) return;
   biblioteca = biblioteca.filter(p=>p.id!==id);
   save.biblioteca(); renderProdutos();
 }
@@ -1770,244 +1667,10 @@ function superKey3(e){
   if(e.key==='Escape'||e.key==='Enter'){ document.getElementById('super-ac-drop3').style.display='none'; }
 }
 
-// ── TEMPLATES (kept for backward compat, hidden from UI) ──────────────────────
-let tplPickSelections = {}; // {itemName: {qty, checked}}
-
-function openTemplatePicker(){
-  if(!templates.length){ alert('Sem listas-modelo. Cria uma nas Definições → Modelos.'); return; }
-  renderTemplatePicker();
-  openModal('tpl-picker-modal');
-}
-
-function renderTemplatePicker(){
-  const el = document.getElementById('tpl-picker-body'); if(!el) return;
-  el.innerHTML = templates.map(t => `
-    <div class="tpl-card" id="tpl-card-${t.id}">
-      <div class="tpl-header" onclick="toggleTplCard(${t.id})">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:20px">${t.emoji}</span>
-          <div>
-            <div class="tpl-name">${t.name}</div>
-            <div class="tpl-meta">${t.items.length} produtos</div>
-          </div>
-        </div>
-        <i class="ti ti-chevron-down tpl-chevron" id="tpl-chev-${t.id}"></i>
-      </div>
-      <div class="tpl-items" id="tpl-items-${t.id}" style="display:none">
-        ${t.items.map(it => `
-          <div class="tpl-item-row" onclick="toggleTplItem(${t.id},'${it.name.replace(/'/,"\\'")}')">
-            <div class="tpl-item-check" id="tpl-chk-${t.id}-${CSS.escape(it.name)}">
-              <i class="ti ti-plus" style="font-size:14px;color:var(--text3)"></i>
-            </div>
-            <div class="tpl-item-info">
-              <div class="tpl-item-name">${it.name}</div>
-              <div class="tpl-item-cat"><span class="badge ${catColor(it.cat)}" style="font-size:9px">${it.cat}</span>${it.super?`<span style="font-size:10px;color:var(--text2);margin-left:4px">🏪 ${it.super}</span>`:''}</div>
-            </div>
-            <input type="number" class="tpl-qty-input" value="${it.qty||1}" min="0.1" step="0.1"
-              id="tpl-qty-${t.id}-${CSS.escape(it.name)}"
-              onclick="event.stopPropagation()" onchange="updateTplQty(${t.id},'${it.name.replace(/'/,"\\'")}',this.value)">
-          </div>`).join('')}
-        <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-          <button onclick="selectAllTplItems(${t.id})" style="flex:1;justify-content:center;font-size:12px;padding:7px"><i class="ti ti-check-all"></i> Tudo</button>
-          <button onclick="deselectAllTplItems(${t.id})" style="flex:1;justify-content:center;font-size:12px;padding:7px"><i class="ti ti-x"></i> Nenhum</button>
-        </div>
-      </div>
-    </div>`).join('');
-  tplPickSelections = {};
-}
-
-function toggleTplCard(tid){
-  const panel = document.getElementById('tpl-items-'+tid);
-  const chev  = document.getElementById('tpl-chev-'+tid);
-  if(!panel) return;
-  const open = panel.style.display !== 'none';
-  panel.style.display = open ? 'none' : 'block';
-  if(chev) chev.style.transform = open ? '' : 'rotate(180deg)';
-}
-
-function toggleTplItem(tid, name){
-  const key = tid+'::'+name;
-  const t = templates.find(t=>t.id===tid);
-  const it = t && t.items.find(i=>i.name===name);
-  if(!it) return;
-  if(tplPickSelections[key]){
-    delete tplPickSelections[key];
-  } else {
-    const qtyEl = document.getElementById('tpl-qty-'+tid+'-'+CSS.escape(name));
-    tplPickSelections[key] = {item: it, qty: parseFloat(qtyEl?.value)||it.qty||1};
-  }
-  refreshTplItemUI(tid, name);
-  refreshTplAddBtn();
-}
-
-function refreshTplItemUI(tid, name){
-  const key = tid+'::'+name;
-  const sel = !!tplPickSelections[key];
-  const el = document.getElementById('tpl-chk-'+tid+'-'+CSS.escape(name));
-  if(!el) return;
-  el.style.background = sel ? 'var(--green)' : '';
-  el.style.border = sel ? 'none' : '1.5px solid var(--border2)';
-  el.innerHTML = sel
-    ? '<i class="ti ti-check" style="font-size:14px;color:#fff"></i>'
-    : '<i class="ti ti-plus" style="font-size:14px;color:var(--text3)"></i>';
-}
-
-function updateTplQty(tid, name, val){
-  const key = tid+'::'+name;
-  if(tplPickSelections[key]) tplPickSelections[key].qty = parseFloat(val)||1;
-}
-
-function selectAllTplItems(tid){
-  const t = templates.find(t=>t.id===tid); if(!t) return;
-  t.items.forEach(it => {
-    const key = tid+'::'+it.name;
-    const qtyEl = document.getElementById('tpl-qty-'+tid+'-'+CSS.escape(it.name));
-    tplPickSelections[key] = {item:it, qty:parseFloat(qtyEl?.value)||it.qty||1};
-    refreshTplItemUI(tid, it.name);
-  });
-  refreshTplAddBtn();
-}
-
-function deselectAllTplItems(tid){
-  const t = templates.find(t=>t.id===tid); if(!t) return;
-  t.items.forEach(it => {
-    const key = tid+'::'+it.name;
-    delete tplPickSelections[key];
-    refreshTplItemUI(tid, it.name);
-  });
-  refreshTplAddBtn();
-}
-
-function refreshTplAddBtn(){
-  const count = Object.keys(tplPickSelections).length;
-  const btn = document.getElementById('tpl-add-btn');
-  if(btn) btn.textContent = count > 0 ? `Adicionar ${count} item${count!==1?'s':''}` : 'Seleciona produtos';
-  if(btn) btn.disabled = count === 0;
-}
-
-function addFromTemplate(){
-  const entries = Object.values(tplPickSelections);
-  if(!entries.length) return;
-  entries.forEach(({item, qty}) => {
-    const prev = acHistory().find(x=>x.name.toLowerCase()===item.name.toLowerCase());
-    items.push({
-      id: Date.now()+Math.random(),
-      name: item.name,
-      qty: qty||1,
-      price: prev ? avgPrice(prev) : (item.price||0),
-      cat: item.cat||'Outros',
-      super: item.super||'',
-      note: item.note||'',
-      done: false
-    });
-  });
-  save.items();
-  closeModal('tpl-picker-modal');
-  switchTab('lista');
-  renderAll();
-}
-
-// Template management
-function openTemplateManager(){
-  renderTemplateManager();
-  openSettings();
-  showMTab('s-tpl');
-}
-let editTplId = null;
-let editTplItems = [];
-
-function renderTemplateManager(){
-  const el = document.getElementById('tpl-manager-list'); if(!el) return;
-  el.innerHTML = templates.map(t => `
-    <div class="fav-card">
-      <div class="fav-header">
-        <div>
-          <div class="fav-name">${t.emoji} ${t.name}</div>
-          <div class="fav-meta">${t.items.length} produtos</div>
-        </div>
-        <div class="fav-actions">
-          <button class="icon-btn" onclick="editTemplate(${t.id})" title="Editar"><i class="ti ti-edit"></i></button>
-          <button class="icon-btn" onclick="dupTemplate(${t.id})" title="Duplicar"><i class="ti ti-copy"></i></button>
-          <button class="icon-btn" onclick="deleteTemplate(${t.id})" title="Apagar" style="color:var(--text2)"><i class="ti ti-trash"></i></button>
-        </div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:3px">
-        ${t.items.slice(0,8).map(i=>`<span style="font-size:11px;color:var(--text2)">${i.name}</span>`).join('<span style="color:var(--text3);font-size:11px"> · </span>')}
-        ${t.items.length>8?`<span style="font-size:11px;color:var(--text3)"> +${t.items.length-8}</span>`:''}
-      </div>
-    </div>`).join('');
-}
-function dupTemplate(id){
-  const t = templates.find(t=>t.id===id); if(!t) return;
-  templates.push({id:Date.now(), name:t.name+' (cópia)', emoji:t.emoji, items:JSON.parse(JSON.stringify(t.items))});
-  save.templates(); renderTemplateManager();
-}
-function deleteTemplate(id){
-  if(!confirm('Apagar modelo?')) return;
-  templates = templates.filter(t=>t.id!==id);
-  save.templates(); renderTemplateManager();
-}
-function editTemplate(id){
-  const t = templates.find(t=>t.id===id); if(!t) return;
-  editTplId = id;
-  editTplItems = JSON.parse(JSON.stringify(t.items));
-  document.getElementById('tpl-edit-name').value = t.name;
-  document.getElementById('tpl-edit-emoji').textContent = t.emoji;
-  renderTplEditItems();
-  openModal('tpl-edit-modal');
-}
-function newTemplate(){
-  editTplId = null;
-  editTplItems = [];
-  document.getElementById('tpl-edit-name').value = '';
-  document.getElementById('tpl-edit-emoji').textContent = '📋';
-  renderTplEditItems();
-  openModal('tpl-edit-modal');
-}
-function renderTplEditItems(){
-  const el = document.getElementById('tpl-edit-items'); if(!el) return;
-  if(!editTplItems.length){ el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0">Sem produtos ainda</div>'; return; }
-  el.innerHTML = editTplItems.map((it,i) => `
-    <div class="cat-list-item">
-      <span style="flex:1;font-size:13px">${it.name}<span style="color:var(--text2);font-size:11px"> × ${it.qty}</span>${it.super?`<span style="color:var(--blue-dark);font-size:11px"> · ${it.super}</span>`:''}</span>
-      <button class="icon-btn" onclick="removeTplItem(${i})"><i class="ti ti-x"></i></button>
-    </div>`).join('');
-}
-function removeTplItem(i){ editTplItems.splice(i,1); renderTplEditItems(); }
-function addTplItem(){
-  const name = document.getElementById('tpl-item-name').value.trim();
-  if(!name) return;
-  const qty = parseFloat(document.getElementById('tpl-item-qty').value)||1;
-  const cat = document.getElementById('tpl-item-cat').value;
-  const superVal = document.getElementById('tpl-item-super').value.trim();
-  const prev = acHistory().find(x=>x.name.toLowerCase()===name.toLowerCase());
-  editTplItems.push({name:prev?prev.name:name, qty, cat: cat||prev?.cat||'Outros', super:superVal, note:'', price:0});
-  document.getElementById('tpl-item-name').value='';
-  document.getElementById('tpl-item-qty').value='1';
-  document.getElementById('tpl-item-super').value='';
-  renderTplEditItems();
-}
-function saveTplEdit(){
-  const name = document.getElementById('tpl-edit-name').value.trim();
-  const emoji = document.getElementById('tpl-edit-emoji').textContent;
-  if(!name){ alert('Dá um nome ao modelo'); return; }
-  if(editTplId){
-    const t = templates.find(t=>t.id===editTplId);
-    if(t){ t.name=name; t.emoji=emoji; t.items=editTplItems; }
-  } else {
-    templates.push({id:Date.now(), name, emoji, items:editTplItems});
-  }
-  save.templates(); closeModal('tpl-edit-modal'); renderTemplateManager();
-}
-function pickTplEmoji(){
-  window._emojiTarget = 'tpl-edit-emoji';
-  const grid = document.getElementById('emoji-grid');
-  grid.innerHTML = EMOJIS.map(e=>`<div onclick="setEmojiTarget('${e}')" style="font-size:28px;cursor:pointer;padding:6px;border-radius:8px;transition:background .1s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">${e}</div>`).join('');
-  openModal('emoji-modal');
-}
 function setEmojiTarget(e){
   const target = window._emojiTarget || 'new-ev-emoji';
-  document.getElementById(target).textContent = e;
+  const el = document.getElementById(target);
+  if(el) el.textContent = e;
   closeModal('emoji-modal');
 }
 
@@ -2098,8 +1761,10 @@ function renderComprar(){
 }
 
 function renderFavs(){
-  const el=document.getElementById('fav-list'); if(!el) return;
-  if(!favs.length){el.innerHTML='<div class="empty"><i class="ti ti-heart"></i>Sem listas guardadas</div>';return;}
+  const el=document.getElementById('saved-lists-body'); if(!el) return;
+  const badge=document.getElementById('fav-badge');
+  if(badge) badge.style.display=favs.length?'block':'none';
+  if(!favs.length){el.innerHTML='<div class="empty"><i class="ti ti-heart"></i>Sem listas guardadas.<br><span style="font-size:12px">Guarda a lista atual com o botão ♥ acima.</span></div>';return;}
   el.innerHTML=favs.slice().reverse().map(f=>`
     <div class="fav-card">
       <div class="fav-header">
@@ -2108,8 +1773,8 @@ function renderFavs(){
           <div class="fav-meta">${f.items.length} itens · ${f.date}${f.total>0?' · '+fmt(f.total):''}</div>
         </div>
         <div class="fav-actions">
-          <button class="icon-btn" onclick="loadFav(${f.id})" title="Carregar"><i class="ti ti-download"></i></button>
-          <button class="icon-btn" onclick="dupFav(${f.id})" title="Duplicar"><i class="ti ti-copy"></i></button>
+          <button class="icon-btn" onclick="loadFav(${f.id})" title="Carregar lista"><i class="ti ti-download"></i></button>
+          <button class="icon-btn" onclick="dupFav(${f.id})" title="Duplicar lista"><i class="ti ti-copy"></i></button>
           <button class="icon-btn" onclick="deleteFav(${f.id})" title="Apagar" style="color:var(--text2)"><i class="ti ti-trash"></i></button>
         </div>
       </div>
