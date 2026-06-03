@@ -312,6 +312,12 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
 /* GROUP BY SUPER */
 .super-section-label{font-size:11px;font-weight:600;color:var(--blue-dark);background:var(--blue-light);padding:4px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;margin-bottom:4px;margin-top:8px}
 
+/* ── VOICE ── */
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(217,64,64,.4)}70%{box-shadow:0 0 0 8px rgba(217,64,64,0)}}
+.mic-recording{background:var(--red-light)!important;color:var(--red)!important;animation:mic-pulse 1.2s ease infinite}
+.voice-hint{font-size:11px;color:var(--text2);text-align:center;padding:4px 0;display:none}
+.voice-hint.show{display:block}
+
 /* ── SWIPE TO DELETE ── */
 .swipe-wrap{position:relative;overflow:hidden;border-bottom:1px solid var(--border)}
 .swipe-wrap:last-child{border-bottom:none}
@@ -410,7 +416,9 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
             oninput="showAC()" onkeydown="acKey(event)">
           <div class="ac-dropdown" id="ac-drop" style="display:none"></div>
         </div>
+        <button class="icon-btn" id="mic-btn" onclick="toggleVoice()" title="Adicionar por voz" style="flex-shrink:0;font-size:20px;padding:8px;border-radius:50%;transition:background .2s,color .2s"><i class="ti ti-microphone"></i></button>
       </div>
+      <div class="voice-hint" id="voice-hint">A ouvir... fala agora</div>
       <div class="add-row">
         <input type="number" id="new-qty" placeholder="Qtd" min="0.1" step="0.1" value="1" style="width:62px">
         <input type="number" id="new-price" placeholder="€" min="0" step="0.01" style="width:80px" oninput="checkBudget()">
@@ -462,8 +470,10 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
         <input type="text" id="qa-input" placeholder="Adicionar item rápido..." onkeydown="if(event.key==='Enter')quickAdd()">
       </div>
       <button onclick="quickAdd()" style="padding:9px 12px"><i class="ti ti-plus"></i></button>
+      <button class="icon-btn" id="mic-btn-qa" onclick="toggleVoiceQA()" title="Adicionar por voz" style="font-size:20px;padding:8px;border-radius:50%;flex-shrink:0"><i class="ti ti-microphone"></i></button>
       <button onclick="toggleFocusMode()" id="focus-btn" title="Modo foco"><i class="ti ti-eye"></i></button>
     </div>
+    <div class="voice-hint" id="voice-hint-qa">A ouvir... fala agora</div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-lbl">A comprar</div><div class="stat-val" id="stat-pendente">0</div></div>
       <div class="stat-card"><div class="stat-lbl">Comprado</div><div class="stat-val" id="stat-feito">0</div></div>
@@ -2038,6 +2048,156 @@ renderComprar = function(){
   _origRenderComprar();
   requestAnimationFrame(attachSwipeListeners);
 };
+
+// ── VOZ ──────────────────────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let _voiceRec   = null;
+let _voiceActive = false;  // which target: 'lista' | 'comprar' | null
+
+function _buildRecognizer(){
+  if(!SpeechRecognition) return null;
+  const r = new SpeechRecognition();
+  r.lang = 'pt-PT';
+  r.continuous = false;
+  r.interimResults = true;
+  r.maxAlternatives = 3;
+  return r;
+}
+
+// PT number words → digit
+const NUM_WORDS = {
+  'um':1,'uma':1,'dois':2,'duas':2,'três':3,'quatro':4,'cinco':5,
+  'seis':6,'sete':7,'oito':8,'nove':9,'dez':10,'doze':12,'vinte':20,
+  'meia dúzia':6,'meia duzia':6,'dúzia':12,'duzia':12
+};
+// Parse "dois litros de leite" → {qty:2, name:"leite"}
+// Parse "leite" → {qty:1, name:"leite"}
+// Parse "3 ovos" → {qty:3, name:"ovos"}
+function parseVoice(text){
+  text = text.trim().toLowerCase()
+    .replace(/[.,!?]/g,'')
+    .replace(/adicionar?\s*/,'')
+    .replace(/\bà lista\b/,'')
+    .replace(/\bna lista\b/,'')
+    .trim();
+
+  let qty = 1;
+  let name = text;
+
+  // "meia dúzia de X"
+  const mdMatch = text.match(/^(meia d[uú]zia)\s+(?:de\s+)?(.+)$/);
+  if(mdMatch){ qty=6; name=mdMatch[2]; return {qty,name}; }
+
+  // digit prefix: "3 litros de leite" / "3 leites"
+  const digitMatch = text.match(/^(\d+(?:[.,]\d+)?)\s+(?:litros?\s+(?:de\s+)?|kg\s+(?:de\s+)?|unidades?\s+(?:de\s+)?|embalagens?\s+(?:de\s+)?)?(.+)$/);
+  if(digitMatch){ qty=parseFloat(digitMatch[1].replace(',','.')); name=digitMatch[2]; return {qty,name}; }
+
+  // word number prefix: "dois litros de leite" / "três ovos"
+  for(const [word, n] of Object.entries(NUM_WORDS).sort((a,b)=>b[0].length-a[0].length)){
+    const re = new RegExp('^'+word+'\\s+(?:litros?\\s+(?:de\\s+)?|kg\\s+(?:de\\s+)?|unidades?\\s+(?:de\\s+)?|embalagens?\\s+(?:de\\s+)?)?(.+)$');
+    const m = text.match(re);
+    if(m){ qty=n; name=m[1]; return {qty,name}; }
+  }
+
+  // "leite dois" / "leite 2"
+  const suffixNum = text.match(/^(.+?)\s+(\d+)$/);
+  if(suffixNum){ name=suffixNum[1]; qty=parseInt(suffixNum[2]); return {qty,name}; }
+
+  return {qty:1, name};
+}
+
+function _startVoice(targetInput, btnId, hintId, onResult){
+  if(!SpeechRecognition){
+    showToast('Voz não suportada neste browser. Usa Chrome.'); return;
+  }
+  // If already recording for THIS target, stop
+  if(_voiceActive===targetInput){
+    _stopVoice(); return;
+  }
+  // Stop any existing session first
+  _stopVoice();
+  _voiceActive = targetInput;
+
+  const btn  = document.getElementById(btnId);
+  const hint = document.getElementById(hintId);
+  if(btn)  btn.classList.add('mic-recording');
+  if(hint) hint.classList.add('show');
+
+  _voiceRec = _buildRecognizer();
+
+  _voiceRec.onresult = e => {
+    const results = Array.from(e.results);
+    const last = results[results.length-1];
+    const transcript = last[0].transcript.trim();
+    const isFinal = last.isFinal;
+
+    const inp = document.getElementById(targetInput);
+    if(inp) inp.value = transcript;
+
+    if(isFinal){
+      _stopVoice(btnId, hintId);
+      onResult(transcript);
+    }
+  };
+
+  _voiceRec.onerror = e => {
+    _stopVoice(btnId, hintId);
+    if(e.error === 'no-speech') showToast('Não ouvi nada — tenta outra vez');
+    else if(e.error === 'not-allowed') showToast('Permissão de microfone negada');
+    else showToast('Erro de voz: ' + e.error);
+  };
+
+  _voiceRec.onend = () => {
+    // If ended without result (e.g. silence), clean up
+    if(_voiceActive === targetInput) _stopVoice(btnId, hintId);
+  };
+
+  try { _voiceRec.start(); }
+  catch(e){ _stopVoice(btnId, hintId); showToast('Erro ao iniciar microfone'); }
+}
+
+function _stopVoice(btnId, hintId){
+  _voiceActive = null;
+  if(_voiceRec){ try{ _voiceRec.stop(); }catch(e){} _voiceRec=null; }
+  if(btnId){ const b=document.getElementById(btnId); if(b) b.classList.remove('mic-recording'); }
+  if(hintId){ const h=document.getElementById(hintId); if(h) h.classList.remove('show'); }
+  // Also clean both known buttons just in case
+  ['mic-btn','mic-btn-qa'].forEach(id=>{ const b=document.getElementById(id); if(b) b.classList.remove('mic-recording'); });
+  ['voice-hint','voice-hint-qa'].forEach(id=>{ const h=document.getElementById(id); if(h) h.classList.remove('show'); });
+}
+
+function toggleVoice(){
+  _startVoice('new-item', 'mic-btn', 'voice-hint', transcript => {
+    const {qty, name} = parseVoice(transcript);
+    document.getElementById('new-item').value = name;
+    if(qty !== 1) document.getElementById('new-qty').value = qty;
+    // Try to match against known products for autocomplete
+    const known = acHistory().find(x => x.name.toLowerCase() === name.toLowerCase());
+    if(known){
+      document.getElementById('new-cat').value = known.cat;
+      const avg = avgPrice(known);
+      if(avg > 0) document.getElementById('new-price').value = avg.toFixed(2);
+    }
+    showAC();
+    if(navigator.vibrate) navigator.vibrate(30);
+    // Auto-add if exact match in biblioteca
+    const bibMatch = biblioteca.find(b => b.name.toLowerCase() === name.toLowerCase());
+    if(bibMatch){
+      addItem();
+      showToast(`"${bibMatch.name}" adicionado`);
+    }
+  });
+}
+
+function toggleVoiceQA(){
+  _startVoice('qa-input', 'mic-btn-qa', 'voice-hint-qa', transcript => {
+    const {qty, name} = parseVoice(transcript);
+    document.getElementById('qa-input').value = name;
+    if(navigator.vibrate) navigator.vibrate(30);
+    // Slight delay then add
+    setTimeout(()=>{ quickAdd(); }, 300);
+  });
+}
 
 // ── PWA MANIFEST ──────────────────────────────────────────────────────────────
 (function(){
