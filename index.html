@@ -311,6 +311,43 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
 
 /* GROUP BY SUPER */
 .super-section-label{font-size:11px;font-weight:600;color:var(--blue-dark);background:var(--blue-light);padding:4px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;margin-bottom:4px;margin-top:8px}
+
+/* ── SWIPE TO DELETE ── */
+.swipe-wrap{position:relative;overflow:hidden;border-bottom:1px solid var(--border)}
+.swipe-wrap:last-child{border-bottom:none}
+.swipe-wrap .item-row{border-bottom:none;transform:translateX(0);transition:transform .22s ease;will-change:transform;background:var(--bg);position:relative;z-index:1}
+.swipe-reveal{position:absolute;right:0;top:0;bottom:0;width:80px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;z-index:0;border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:calc(24px + var(--safe-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:40px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;z-index:500}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.toast button{background:var(--green);color:#fff;border:none;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+
+/* ── BOTTOM SHEET EDIT ── */
+.bsheet-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:flex-end;justify-content:center}
+.bsheet-bg.open{display:flex}
+.bsheet{background:var(--surface);border-radius:20px 20px 0 0;padding:20px 16px calc(24px + var(--safe-bottom));width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.bsheet-handle{width:36px;height:4px;border-radius:2px;background:var(--surface3);margin:0 auto 16px}
+.bsheet h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:14px}
+
+/* ── QR SYNC MODAL ── */
+.qr-tabs{display:flex;gap:2px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.qr-tab{flex:1;padding:8px 4px 10px;font-size:13px;border:none;background:none;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;font-family:'DM Sans',sans-serif;font-weight:500}
+.qr-tab.active{color:var(--text);border-bottom-color:var(--green)}
+.qr-panel{display:none}.qr-panel.active{display:block}
+#qr-canvas{display:block;margin:0 auto;border-radius:12px}
+#scan-video{width:100%;border-radius:12px;background:#000;aspect-ratio:1;object-fit:cover}
+
+/* ── LIVE SHARE MODAL ── */
+.share-code{font-family:'Syne',sans-serif;font-size:42px;font-weight:800;letter-spacing:8px;text-align:center;color:var(--green);padding:16px 0;user-select:all}
+.share-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);justify-content:center;margin-bottom:12px}
+.share-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.share-dot.on{background:var(--green);box-shadow:0 0 0 3px var(--green-light);animation:pulse-dot 1.5s ease infinite}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 3px var(--green-light)}50%{box-shadow:0 0 0 6px var(--green-light)}}
+.peer-list{margin-top:8px}
+.peer-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.peer-row:last-child{border-bottom:none}
+.peer-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
 </style>
 </head>
 <body>
@@ -326,6 +363,8 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
       </div>
     </div>
     <div class="header-actions">
+      <button class="icon-btn" onclick="openShare()" title="Partilhar lista ao vivo" id="share-live-btn"><i class="ti ti-wifi"></i></button>
+      <button class="icon-btn" onclick="openQRSync()" title="Sincronizar via QR"><i class="ti ti-qrcode"></i></button>
       <button class="icon-btn" onclick="openSettings()" title="Definições"><i class="ti ti-settings"></i></button>
     </div>
   </div>
@@ -527,6 +566,86 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
   </div>
 </div>
 
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-msg"></span>
+  <button onclick="undoDelete()" id="toast-undo" style="display:none">Desfazer</button>
+</div>
+
+<!-- BOTTOM SHEET EDIT (replaces modal on mobile) -->
+<div class="bsheet-bg" id="bsheet-edit">
+  <div class="bsheet">
+    <div class="bsheet-handle"></div>
+    <h3>Editar item</h3>
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Nome</label><input type="text" id="be-name">
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;margin-top:10px">Quantidade</label><input type="number" id="be-qty" min="0.1" step="0.1">
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;margin-top:10px">Preço (€)</label><input type="number" id="be-price" min="0" step="0.01">
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;margin-top:10px">Categoria</label><select id="be-cat"></select>
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;margin-top:10px">Supermercado</label>
+    <input type="text" id="be-super" placeholder="Onde comprar">
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;margin-top:10px">Nota</label>
+    <textarea id="be-note" style="height:52px;resize:none;width:100%;font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 11px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text)"></textarea>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="closeBSheet()" style="flex:1;justify-content:center">Cancelar</button>
+      <button class="primary" onclick="saveBSheetEdit()" style="flex:1;justify-content:center">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR SYNC MODAL -->
+<div class="modal-bg" id="qr-modal">
+  <div class="modal">
+    <h3>Sincronizar via QR</h3>
+    <div class="qr-tabs">
+      <button class="qr-tab active" onclick="showQRTab('export')">Exportar</button>
+      <button class="qr-tab" onclick="showQRTab('import')">Importar</button>
+    </div>
+    <div class="qr-panel active" id="qr-export-panel">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px;text-align:center">Mostra este QR no outro dispositivo para importar os teus dados.</p>
+      <canvas id="qr-canvas" width="240" height="240"></canvas>
+      <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text3)" id="qr-info"></div>
+    </div>
+    <div class="qr-panel" id="qr-import-panel">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;text-align:center">Aponta a câmara ao QR do outro dispositivo.</p>
+      <video id="scan-video" autoplay playsinline muted></video>
+      <div id="scan-status" style="text-align:center;font-size:12px;color:var(--text2);margin-top:8px">A iniciar câmara...</div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button onclick="closeQRModal()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIVE SHARE MODAL -->
+<div class="modal-bg" id="live-share-modal">
+  <div class="modal">
+    <h3>Partilha em tempo real</h3>
+    <div id="live-share-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Partilha a tua lista com alguém. As alterações ficam sincronizadas em direto.</p>
+      <button class="primary" onclick="startLiveShare()" style="width:100%;justify-content:center;margin-bottom:8px"><i class="ti ti-plus"></i> Criar sessão de partilha</button>
+      <div style="display:flex;align-items:center;gap:8px;margin:10px 0"><div style="flex:1;height:1px;background:var(--border)"></div><span style="font-size:11px;color:var(--text3)">ou</span><div style="flex:1;height:1px;background:var(--border)"></div></div>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="join-code-input" placeholder="Código de 6 letras..." maxlength="6" style="flex:1;text-transform:uppercase;letter-spacing:4px;font-size:16px;font-weight:700;text-align:center">
+        <button onclick="joinLiveShare()" style="padding:9px 14px"><i class="ti ti-arrow-right"></i> Entrar</button>
+      </div>
+    </div>
+    <div id="live-share-active" style="display:none">
+      <div class="share-code" id="live-code">------</div>
+      <div class="share-status">
+        <div class="share-dot on" id="share-dot"></div>
+        <span id="share-status-txt">Ligado · aguarda participantes</span>
+      </div>
+      <div class="peer-list" id="peer-list"></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="stopLiveShare()" class="danger" style="flex:1;justify-content:center"><i class="ti ti-wifi-off"></i> Terminar sessão</button>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button onclick="closeModal('live-share-modal')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT MODAL -->
 <div class="modal-bg" id="edit-modal">
   <div class="modal">
@@ -703,6 +822,8 @@ button.danger{background:var(--red-light);color:var(--red-dark);border-color:tra
 </style>
 
 
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 // ── STORAGE ──────────────────────────────────────────────────────────────────
 const ls = k => { try { return JSON.parse(localStorage.getItem(k)||'null') } catch { return null } };
@@ -931,7 +1052,7 @@ function editPhotoLabel(){
 
 // ── CATEGORIES ───────────────────────────────────────────────────────────────
 function buildCatSelects(){
-  ['new-cat','e-cat','prod-cat'].forEach(id => {
+  ['new-cat','e-cat','prod-cat','be-cat'].forEach(id => {
     const el = document.getElementById(id); if(!el) return;
     const prev = el.value;
     el.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -1684,11 +1805,12 @@ function itemRowHTML(i, showCheck, showPriceEdit){
     if(avg>0 && i.price < avg*0.95) priceClass='item-price highlight';
   }
   const superBadge = i.super ? `<span class="item-super"><i class="ti ti-building-store" style="font-size:9px"></i>${i.super}</span>` : '';
-  return `<div class="item-row" draggable="${!showCheck}" data-id="${i.id}"
+  const inner = `<div class="item-row" data-id="${i.id}"
+    draggable="${!showCheck}"
     ${!showCheck?`ondragstart="dragStart(event,${i.id})" ondragover="dragOver(event,${i.id})" ondrop="dragDrop(event,${i.id})" ondragleave="dragLeave(event)"`:''}>
     ${showCheck
-      ?`<input type="checkbox" class="item-check" ${i.done?'checked':''} onchange="toggleDone(${i.id})">`
-      :`<i class="ti ti-grip-vertical drag-handle"></i>`}
+      ?`<input type="checkbox" class="item-check" ${i.done?'checked':''} onchange="toggleDone(${i.id})" style="width:22px;height:22px">`
+      :`<i class="ti ti-grip-vertical drag-handle" style="padding:4px"></i>`}
     <div class="item-body">
       <div class="item-name ${i.done?'done':''}">${i.name}</div>
       <div class="item-meta">${i.qty} un.${i.note?' · '+i.note:''}${superBadge?'&nbsp;':''} ${superBadge}</div>
@@ -1698,8 +1820,11 @@ function itemRowHTML(i, showCheck, showPriceEdit){
         ?`<input type="number" class="item-price-edit" value="${i.price}" min="0" step="0.01" onchange="updatePrice(${i.id},this.value)" onclick="event.stopPropagation()">`
         :`<span class="${priceClass}">${priceStr}</span>`}
     </div>
-    <button class="icon-btn" onclick="openEdit(${i.id})"><i class="ti ti-edit"></i></button>
-    <button class="icon-btn" onclick="delItem(${i.id})"><i class="ti ti-x"></i></button>
+    <button class="icon-btn" style="min-width:36px;min-height:44px" onclick="openEditItem(${i.id})"><i class="ti ti-edit"></i></button>
+  </div>`;
+  return `<div class="swipe-wrap" id="sw-${i.id}">
+    <div class="swipe-reveal"><i class="ti ti-trash"></i></div>
+    ${inner}
   </div>`;
 }
 
@@ -1827,6 +1952,483 @@ function renderAll(){
   const sr=document.getElementById('stat-resto2');if(sr)sr.textContent=curOrc>0?fmt(Math.max(0,curOrc-gasto)):'–';
   renderLista(); renderComprar(); renderFavs(); renderHistorico(); renderGallery(); renderProdutos();
 }
+
+// ── TOAST + UNDO ──────────────────────────────────────────────────────────────
+let _toastTimer = null;
+let _lastDeleted = null; // {type:'item'|'produto', data, index}
+
+function showToast(msg, undoFn){
+  let t = document.getElementById('app-toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'app-toast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  if(_toastTimer) clearTimeout(_toastTimer);
+  if(undoFn){
+    t.innerHTML = `<span>${msg}</span><button onclick="undoLast()">Desfazer</button>`;
+    window._undoFn = undoFn;
+  } else {
+    t.innerHTML = `<span>${msg}</span>`;
+    window._undoFn = null;
+  }
+  t.classList.add('show');
+  _toastTimer = setTimeout(()=>{ t.classList.remove('show'); window._undoFn=null; }, 4000);
+}
+function undoLast(){
+  if(window._undoFn) window._undoFn();
+  const t = document.getElementById('app-toast');
+  if(t) t.classList.remove('show');
+  if(_toastTimer) clearTimeout(_toastTimer);
+  window._undoFn = null;
+}
+
+// Wrap delItem and deleteProduto with undo
+const _origDelItem = delItem;
+delItem = function(id){
+  const it = items.find(i=>i.id===id);
+  const idx = items.findIndex(i=>i.id===id);
+  if(!it) return;
+  items = items.filter(i=>i.id!==id);
+  save.items(); renderAll();
+  showToast(`"${it.name}" apagado`, ()=>{
+    items.splice(idx, 0, it);
+    save.items(); renderAll();
+  });
+};
+const _origDelProduto = deleteProduto;
+deleteProduto = function(id){
+  const p = biblioteca.find(x=>x.id===id);
+  const idx = biblioteca.findIndex(x=>x.id===id);
+  if(!p) return;
+  biblioteca = biblioteca.filter(x=>x.id!==id);
+  save.biblioteca(); renderProdutos();
+  showToast(`"${p.name}" removido`, ()=>{
+    biblioteca.splice(idx, 0, p);
+    save.biblioteca(); renderProdutos();
+  });
+};
+
+// ── BOTTOM SHEET EDIT ─────────────────────────────────────────────────────────
+// Add be-cat to buildCatSelects
+(function patchCatSelects(){
+  const orig = buildCatSelects;
+  buildCatSelects = function(){
+    orig();
+    const el = document.getElementById('be-cat'); if(!el) return;
+    const prev = el.value;
+    el.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(cats.includes(prev)) el.value = prev;
+  };
+})();
+
+function openEditItem(id){
+  const it = items.find(i=>i.id===id); if(!it) return;
+  editId = id;
+  document.getElementById('be-name').value  = it.name;
+  document.getElementById('be-qty').value   = it.qty;
+  document.getElementById('be-price').value = it.price;
+  document.getElementById('be-super').value = it.super||'';
+  document.getElementById('be-note').value  = it.note||'';
+  // populate be-cat
+  const ec = document.getElementById('be-cat');
+  if(ec){ ec.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join(''); ec.value=it.cat; }
+  document.getElementById('bsheet-edit').classList.add('open');
+}
+function closeBSheet(){
+  document.getElementById('bsheet-edit').classList.remove('open');
+}
+function saveBSheetEdit(){
+  const it = items.find(i=>i.id===editId); if(!it) return;
+  it.name  = document.getElementById('be-name').value.trim()||it.name;
+  it.qty   = parseFloat(document.getElementById('be-qty').value)||1;
+  it.price = parseFloat(document.getElementById('be-price').value)||0;
+  it.cat   = document.getElementById('be-cat').value;
+  it.super = document.getElementById('be-super').value.trim();
+  it.note  = document.getElementById('be-note').value.trim();
+  save.items(); closeBSheet(); renderAll();
+}
+// close bsheet on backdrop tap
+document.getElementById('bsheet-edit').addEventListener('click', function(e){
+  if(e.target===this) closeBSheet();
+});
+
+// ── SWIPE TO DELETE ───────────────────────────────────────────────────────────
+function attachSwipeListeners(){
+  document.querySelectorAll('.swipe-wrap').forEach(wrap => {
+    if(wrap._swipeAttached) return;
+    wrap._swipeAttached = true;
+    const row = wrap.querySelector('.item-row');
+    if(!row) return;
+    let startX=0, startY=0, curX=0, dragging=false, locked=false;
+    const THRESHOLD = 80;
+
+    row.addEventListener('touchstart', e=>{
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      curX = 0; dragging = false; locked = false;
+      row.style.transition='none';
+    }, {passive:true});
+
+    row.addEventListener('touchmove', e=>{
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if(!dragging && Math.abs(dy) > Math.abs(dx)+4){ locked=true; return; }
+      if(locked) return;
+      dragging = true;
+      if(dx > 0){ row.style.transform='translateX(0)'; return; }
+      curX = Math.max(dx, -THRESHOLD-20);
+      row.style.transform = `translateX(${curX}px)`;
+      e.preventDefault();
+    }, {passive:false});
+
+    row.addEventListener('touchend', ()=>{
+      row.style.transition='transform .22s ease';
+      if(curX < -THRESHOLD*0.7){
+        row.style.transform=`translateX(-${THRESHOLD}px)`;
+        if(navigator.vibrate) navigator.vibrate(30);
+        const id = parseInt(wrap.id.replace('sw-',''));
+        setTimeout(()=>{
+          wrap.style.transition='height .2s,opacity .2s';
+          wrap.style.height = wrap.offsetHeight+'px';
+          requestAnimationFrame(()=>{ wrap.style.height='0'; wrap.style.opacity='0'; });
+          setTimeout(()=>delItem(id), 220);
+        }, 120);
+      } else {
+        row.style.transform='translateX(0)';
+      }
+      curX=0; dragging=false;
+    });
+  });
+}
+
+// patch renderLista and renderComprar to call attachSwipeListeners after render
+const _origRenderLista = renderLista;
+renderLista = function(){
+  _origRenderLista();
+  requestAnimationFrame(attachSwipeListeners);
+};
+const _origRenderComprar = renderComprar;
+renderComprar = function(){
+  _origRenderComprar();
+  requestAnimationFrame(attachSwipeListeners);
+};
+
+// ── QR SYNC ───────────────────────────────────────────────────────────────────
+let _scanStream = null;
+let _scanAnimFrame = null;
+
+function openQRSync(){
+  // Generate QR on open
+  showQRTab('export');
+  openModal('qr-modal');
+  setTimeout(generateQR, 100);
+}
+function closeQRModal(){
+  stopScan();
+  closeModal('qr-modal');
+}
+
+function showQRTab(tab){
+  document.querySelectorAll('.qr-tab').forEach((b,i)=>b.classList.toggle('active',['export','import'][i]===tab));
+  document.querySelectorAll('.qr-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('qr-'+tab+'-panel').classList.add('active');
+  if(tab==='export') setTimeout(generateQR, 80);
+  if(tab==='import') startScan();
+  if(tab!=='import') stopScan();
+}
+
+async function generateQR(){
+  // Compress data: only biblioteca + items (what matters most for sync)
+  const payload = {
+    v:1,
+    b: biblioteca.map(p=>({i:p.id,n:p.name,c:p.cat,q:p.qty,p:p.price||0,s:p.super||'',t:p.note||''})),
+    l: items.map(i=>({i:i.id,n:i.name,c:i.cat,q:i.qty,p:i.price||0,s:i.super||'',t:i.note||'',d:i.done?1:0}))
+  };
+  const json = JSON.stringify(payload);
+  // Simple base64 encoding (no compression lib needed)
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+
+  const info = document.getElementById('qr-info');
+  const canvas = document.getElementById('qr-canvas');
+
+  if(b64.length > 2953){ // QR v40 max
+    if(info) info.textContent = `Dados demasiado grandes (${Math.round(b64.length/1024)}KB). Usa o export JSON para listas grandes.`;
+    // Still try — QRCode lib may handle it
+  }
+
+  // Load QRCode lib dynamically
+  if(!window.QRCode){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  // Clear previous
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+  const container = document.createElement('div');
+  try {
+    new QRCode(container, {
+      text: b64,
+      width: 240, height: 240,
+      colorDark: getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#000',
+      colorLight: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()||'#fff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    // QRCode renders a canvas inside container
+    await new Promise(r=>setTimeout(r,80));
+    const qrCanvas = container.querySelector('canvas');
+    if(qrCanvas){
+      canvas.width = qrCanvas.width;
+      canvas.height = qrCanvas.height;
+      canvas.getContext('2d').drawImage(qrCanvas, 0, 0);
+    }
+    const items_count = payload.l.length;
+    const prods_count = payload.b.length;
+    if(info) info.textContent = `${prods_count} produtos · ${items_count} itens na lista · ${Math.round(b64.length/1024*10)/10}KB`;
+  } catch(e) {
+    if(info) info.textContent = 'Erro ao gerar QR: '+e.message;
+  }
+}
+
+async function startScan(){
+  const video = document.getElementById('scan-video');
+  const status = document.getElementById('scan-status');
+  try {
+    _scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode:'environment', width:{ideal:640}, height:{ideal:640} }
+    });
+    video.srcObject = _scanStream;
+    await video.play();
+    status.textContent = 'A procurar QR code...';
+    scanLoop(video, status);
+  } catch(e) {
+    status.textContent = 'Câmara não disponível: '+e.message;
+  }
+}
+function stopScan(){
+  if(_scanAnimFrame){ cancelAnimationFrame(_scanAnimFrame); _scanAnimFrame=null; }
+  if(_scanStream){ _scanStream.getTracks().forEach(t=>t.stop()); _scanStream=null; }
+}
+function scanLoop(video, status){
+  if(!_scanStream) return;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  function tick(){
+    if(!_scanStream){ return; }
+    if(video.readyState===video.HAVE_ENOUGH_DATA){
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video,0,0);
+      const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+      if(window.jsQR){
+        const code = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'dontInvert'});
+        if(code){
+          stopScan();
+          status.textContent = 'QR detectado! A importar...';
+          try { importFromQR(code.data); }
+          catch(e){ status.textContent='Erro ao ler QR: '+e.message; }
+          return;
+        }
+      }
+    }
+    _scanAnimFrame = requestAnimationFrame(tick);
+  }
+  tick();
+}
+function importFromQR(b64){
+  const json = decodeURIComponent(escape(atob(b64)));
+  const data = JSON.parse(json);
+  if(!data.v) throw new Error('Formato inválido');
+  let changed = false;
+  // Merge biblioteca
+  if(data.b && Array.isArray(data.b)){
+    data.b.forEach(p=>{
+      const exists = biblioteca.find(x=>x.name.toLowerCase()===p.n.toLowerCase());
+      if(!exists){
+        biblioteca.push({id:p.i||Date.now()+Math.random(),name:p.n,cat:p.c||'Outros',qty:p.q||1,price:p.p||0,super:p.s||'',note:p.t||''});
+        changed=true;
+      }
+    });
+  }
+  // Merge lista items
+  if(data.l && Array.isArray(data.l)){
+    data.l.forEach(i=>{
+      const exists = items.find(x=>x.name===i.n&&!x.done);
+      if(!exists){
+        items.push({id:Date.now()+Math.random(),name:i.n,cat:i.c||'Outros',qty:i.q||1,price:i.p||0,super:i.s||'',note:i.t||'',done:!!i.d});
+        changed=true;
+      }
+    });
+  }
+  if(changed){ save.biblioteca(); save.items(); renderAll(); }
+  const status = document.getElementById('scan-status');
+  const newProds = (data.b||[]).length;
+  const newItems = (data.l||[]).length;
+  if(status) status.textContent = `✓ Importados! ${newProds} produtos, ${newItems} itens da lista.`;
+  setTimeout(()=>closeQRModal(), 1500);
+}
+
+// ── LIVE SHARE (Supabase Realtime) ─────────────────────────────────────────────
+// ⚠️  Substitui SUPABASE_ANON pela tua anon/public key do ScoutFlow Pro
+// Project Settings → Data API → "anon public" key
+const SUPABASE_URL  = 'https://macdfqkbwanwzmkrdpuq.supabase.co';
+const SUPABASE_ANON = 'COLOCA_AQUI_A_TUA_ANON_KEY'; // eyJhbGci...
+let _liveChannel  = null;
+let _liveCode     = null;
+let _liveRole     = null; // 'host' | 'guest'
+let _peers        = {};   // {peerId: {name, lastSeen}}
+let _myPeerId     = localStorage.getItem('sc_peer_id') || (()=>{ const id=Math.random().toString(36).substr(2,8); localStorage.setItem('sc_peer_id',id); return id; })();
+
+function openShare(){
+  document.getElementById('live-share-body').style.display='';
+  document.getElementById('live-share-active').style.display='none';
+  document.getElementById('join-code-input').value='';
+  if(_liveChannel){
+    // Already in a session
+    document.getElementById('live-share-body').style.display='none';
+    document.getElementById('live-share-active').style.display='';
+    document.getElementById('live-code').textContent = _liveCode||'------';
+  }
+  openModal('live-share-modal');
+}
+
+function genCode(){ return Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join(''); }
+
+async function startLiveShare(){
+  _liveCode = genCode();
+  _liveRole = 'host';
+  try {
+    await connectLiveChannel(_liveCode);
+  } catch(e) { return; }
+  document.getElementById('live-share-body').style.display='none';
+  document.getElementById('live-share-active').style.display='';
+  document.getElementById('live-code').textContent = _liveCode;
+  updateShareStatus('Ligado · aguarda participantes');
+  const btn = document.getElementById('share-live-btn');
+  if(btn){ btn.style.background='var(--green)'; btn.style.color='#fff'; btn.title='Sessão activa'; }
+}
+
+async function joinLiveShare(){
+  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+  if(code.length<4){ showToast('Código inválido'); return; }
+  _liveCode = code;
+  _liveRole = 'guest';
+  try {
+    await connectLiveChannel(code);
+  } catch(e) { return; }
+  document.getElementById('live-share-body').style.display='none';
+  document.getElementById('live-share-active').style.display='';
+  document.getElementById('live-code').textContent = _liveCode;
+  updateShareStatus('Ligado · a sincronizar...');
+  sendLiveMsg({type:'REQUEST_STATE', peerId:_myPeerId});
+}
+
+async function connectLiveChannel(code){
+  if(SUPABASE_ANON === 'COLOCA_AQUI_A_TUA_ANON_KEY'){
+    showToast('Configura a SUPABASE_ANON key no código');
+    throw new Error('Supabase key não configurada');
+  }
+  if(!window._sbClient){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    });
+    window._sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  }
+  if(_liveChannel) _liveChannel.unsubscribe();
+  _liveChannel = window._sbClient.channel('lista-'+code, {
+    config:{ broadcast:{ self:false } }
+  });
+  _liveChannel
+    .on('broadcast', {event:'msg'}, ({payload})=>handleLiveMsg(payload))
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED') updateShareStatus('Ligado · pronto');
+      if(status==='CHANNEL_ERROR') updateShareStatus('Erro de ligação');
+    });
+}
+
+function sendLiveMsg(msg){
+  if(!_liveChannel) return;
+  _liveChannel.send({ type:'broadcast', event:'msg', payload:{...msg, from:_myPeerId, ts:Date.now()} });
+}
+
+function handleLiveMsg(msg){
+  if(msg.from === _myPeerId) return;
+  // Track peer
+  if(msg.peerId||msg.from){
+    const id = msg.from||msg.peerId;
+    _peers[id] = {lastSeen:Date.now(), name:'Dispositivo '+Object.keys(_peers).length+1};
+    renderPeers();
+  }
+  switch(msg.type){
+    case 'ITEM_TOGGLE':
+      const it = items.find(i=>i.id===msg.itemId);
+      if(it && it.done!==msg.done){ it.done=msg.done; save.items(); renderAll(); }
+      break;
+    case 'ITEM_ADD':
+      if(!items.find(i=>i.id===msg.item.id)){ items.push(msg.item); save.items(); renderAll(); }
+      break;
+    case 'ITEM_DEL':
+      if(items.find(i=>i.id===msg.itemId)){ items=items.filter(i=>i.id!==msg.itemId); save.items(); renderAll(); }
+      break;
+    case 'STATE_SYNC':
+      if(_liveRole==='guest'){ items=msg.items; save.items(); renderAll(); }
+      break;
+    case 'REQUEST_STATE':
+      if(_liveRole==='host') sendLiveMsg({type:'STATE_SYNC', items, peerId:_myPeerId});
+      break;
+    case 'PING':
+      updateShareStatus('Ligado · '+Object.keys(_peers).length+' participante(s)');
+      break;
+  }
+}
+
+// Patch toggleDone, addItem, delItem to broadcast when in a live session
+const _origToggleDone = toggleDone;
+toggleDone = function(id){
+  _origToggleDone(id);
+  if(_liveChannel){ const it=items.find(i=>i.id===id); if(it) sendLiveMsg({type:'ITEM_TOGGLE',itemId:id,done:it.done,peerId:_myPeerId}); }
+};
+const _origAddItem = addItem;
+addItem = function(){
+  const prevLen = items.length;
+  _origAddItem();
+  if(_liveChannel && items.length>prevLen) sendLiveMsg({type:'ITEM_ADD',item:items[items.length-1],peerId:_myPeerId});
+};
+
+function stopLiveShare(){
+  if(_liveChannel){ _liveChannel.unsubscribe(); _liveChannel=null; }
+  _liveCode=null; _liveRole=null; _peers={};
+  document.getElementById('live-share-body').style.display='';
+  document.getElementById('live-share-active').style.display='none';
+  const btn = document.getElementById('share-live-btn');
+  if(btn){ btn.style.background=''; btn.style.color=''; btn.title='Partilhar lista ao vivo'; }
+  closeModal('live-share-modal');
+  showToast('Sessão terminada');
+}
+
+function updateShareStatus(txt){
+  const el = document.getElementById('share-status-txt'); if(el) el.textContent=txt;
+}
+function renderPeers(){
+  const el = document.getElementById('peer-list'); if(!el) return;
+  const entries = Object.entries(_peers);
+  updateShareStatus('Ligado · '+entries.length+' participante(s)');
+  el.innerHTML = entries.map(([id,p])=>`
+    <div class="peer-row">
+      <div class="peer-dot"></div>
+      <span>${p.name||'Dispositivo'}</span>
+    </div>`).join('');
+}
+// Ping every 15s to show presence
+setInterval(()=>{ if(_liveChannel) sendLiveMsg({type:'PING',peerId:_myPeerId}); }, 15000);
 
 // ── PWA MANIFEST ──────────────────────────────────────────────────────────────
 (function(){
